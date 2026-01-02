@@ -287,14 +287,13 @@
 
                     <div class="form-group">
                         <label>Special Meal Preference (Flight)</label>
-                        <select class="form-control">
-                            <option value="">Standard Meal</option>
+                        <select class="form-control" id="mealPreference">
+                            <option value="none">None</option>
+                            <option value="standard" selected>Standard Meal</option>
                             <option value="vegetarian">Vegetarian</option>
                             <option value="vegan">Vegan</option>
                             <option value="hindu">Hindu Meal</option>
                             <option value="muslim">Muslim Meal</option>
-                            <option value="jain">Jain Meal</option>
-                            <option value="diabetic">Diabetic Meal</option>
                         </select>
                     </div>
 
@@ -686,6 +685,19 @@
             const vehicleSelect = document.getElementById('vehicleType');
             const vehiclePrice = parseInt(vehicleSelect.options[vehicleSelect.selectedIndex].getAttribute('data-price')) || 0;
 
+            // Collect all adult and children details
+            let travelersDetails = 'Travelers:\n';
+            for (let i = 1; i <= numAdults; i++) {
+                const name = document.querySelector(`input[name="adult${i}Name"]`)?.value || '';
+                const age = document.querySelector(`input[name="adult${i}Age"]`)?.value || '';
+                travelersDetails += `Adult ${i}: ${name}, Age: ${age}\n`;
+            }
+            for (let i = 1; i <= numChildren; i++) {
+                const name = document.querySelector(`input[name="child${i}Name"]`)?.value || '';
+                const age = document.querySelector(`input[name="child${i}Age"]`)?.value || '';
+                travelersDetails += `Child ${i}: ${name}, Age: ${age}\n`;
+            }
+
             // Store guest details
             localStorage.setItem('guestName', guestName);
             localStorage.setItem('guestEmail', guestEmail);
@@ -698,15 +710,79 @@
                 numAdults: numAdults,
                 numChildren: numChildren,
                 vehiclePrice: vehiclePrice,
-                basePrice: packagePrice, // Use the actual package price from URL
+                basePrice: packagePrice,
                 timestamp: new Date().toISOString()
             };
 
             // Store in localStorage
             localStorage.setItem('bookingData', JSON.stringify(bookingData));
 
-            // Navigate to payment page
-            window.location.href = 'payment.html';
+            // Create booking summary for sharing
+            const bookingSummary = `
+*TRIP HOLIDAY - Booking Details*
+
+📦 Package: ${packageName}
+✈️ Type: With Flight
+
+👤 Contact Details:
+Name: ${guestName}
+Email: ${guestEmail}
+Phone: ${guestPhone}
+
+${travelersDetails}
+💰 Base Price: ₹${packagePrice.toLocaleString('en-IN')}
+🚗 Vehicle Charge: ₹${vehiclePrice.toLocaleString('en-IN')}
+💵 Total: ₹${(packagePrice + vehiclePrice).toLocaleString('en-IN')}
+
+📅 Booking Date: ${new Date().toLocaleString('en-IN')}
+            `.trim();
+
+            // Offer to save booking details
+            const saveOption = confirm('Would you like to save your booking details before proceeding to payment?\n\nClick OK to share via WhatsApp/Email\nClick Cancel to proceed directly to payment');
+
+            if (saveOption) {
+                // Show options for saving
+                const saveMethod = prompt('How would you like to save your booking details?\n\n1. Send to WhatsApp\n2. Send via Email\n3. Both\n\nEnter 1, 2, or 3:');
+
+                if (saveMethod === '1' || saveMethod === '3') {
+                    // Send to WhatsApp
+                    const whatsappNumber = '917042252130'; // Trip Holiday WhatsApp
+                    const whatsappMessage = encodeURIComponent(bookingSummary);
+                    window.open(`https://wa.me/${whatsappNumber}?text=${whatsappMessage}`, '_blank');
+                }
+
+                if (saveMethod === '2' || saveMethod === '3') {
+                    // Send via Email
+                    const emailSubject = encodeURIComponent(`Booking Request - ${packageName}`);
+                    const emailBody = encodeURIComponent(bookingSummary);
+                    window.open(`mailto:Info@tripholiday.in?subject=${emailSubject}&body=${emailBody}`, '_blank');
+                }
+
+                // Also try to send to backend (if available)
+                try {
+                    fetch('/api/save-booking', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            ...bookingData,
+                            guestName,
+                            guestEmail,
+                            guestPhone,
+                            summary: bookingSummary
+                        })
+                    }).catch(() => {
+                        // Silently fail if backend is not available
+                        console.log('Backend save unavailable');
+                    });
+                } catch (e) {
+                    // Silently fail
+                }
+            }
+
+            // Navigate to payment page after short delay (to allow WhatsApp/Email to open)
+            setTimeout(() => {
+                window.location.href = 'payment.html';
+            }, 1000);
         }
     </script>
 </body>
